@@ -1,0 +1,29 @@
+FROM ubuntu:18.04
+LABEL maintainer='ai_support <ai_support@spacemit.com>'
+
+WORKDIR /home/workspace
+ENV LANG=C.UTF-8 TZ=Asia/Shanghai
+
+# update source
+RUN sed -i'' 's/archive\.ubuntu\.com/us\.archive\.ubuntu\.com/' /etc/apt/sources.list
+RUN apt -y update
+
+# install tools for support library and ai toolkit cicd
+RUN DEBIAN_FRONTEND=noninteractive apt install -y \
+    cmake build-essential gcc g++ libglib2.0-0 \
+    libopencv-dev python3 python3-pip \
+    curl wget ca-certificates tree --fix-missing
+
+# install onnxruntime
+COPY onnxruntime-linux-x64-*.tgz /tmp/
+RUN tar xzf /tmp/onnxruntime-linux-x64-1.15.1.tgz -C . && rm /tmp/onnxruntime-linux-x64-1.15.1.tgz
+RUN tar xzf /tmp/onnxruntime-linux-x64-1.16.3.tgz -C . && rm /tmp/onnxruntime-linux-x64-1.16.3.tgz
+
+# install spacemit ca-certificates
+RUN wget https://nexus.bianbu.xyz/repository/software/dc.com-CA-Root-Base64.crt -O /usr/local/share/ca-certificates/dc.com-CA-Root-Base64.crt --no-check-certificate && update-ca-certificates
+
+# Build bianbu-ai-support:v1.0.0 image:
+# $ docker build -t bianbu-ai-support:v1.0.0 -f dockerfile.x86_64 .
+# $ docker tag bianbu-ai-support:v1.0.0 harbor.bianbu.xyz/spacemit-ai/bianbu-ai-support:v1.0.0
+# $ docker push harbor.bianbu.xyz/spacemit-ai/bianbu-ai-support:v1.0.0
+# v1.0.0: digest: sha256:3a8d345662fc0e264de5d630335e778e4ce86c8b79493bb84d63fc11d5aa2b7c size: 1790
