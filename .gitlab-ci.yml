@@ -64,7 +64,7 @@ build-job-x86_64:   # This job runs in the build stage, which runs first.
     - |
       mkdir ${BUILD_DIR}
       pushd ${BUILD_DIR}
-      cmake .. -DORT_HOME=${ORT_HOME} -DCMAKE_INSTALL_PREFIX=${INSTALL_PREFIX} -DDEMO=ON
+      cmake .. -DORT_HOME=${ORT_HOME} -DCMAKE_INSTALL_PREFIX=${INSTALL_PREFIX} -DDEMO=ON -DXDG=OFF
       make install -j`nproc` VERBOSE=1
       popd
     # copy demo and data
@@ -100,7 +100,7 @@ build-job-riscv64:  # This job runs in the build stage, which runs second.
     #- echo "CI_BUILDS_DIR  ${CI_BUILDS_DIR}"
     #- echo "CI_PROJECT_DIR ${CI_PROJECT_DIR}"
     - echo "Downloading latest spacemit-ort ..."
-    - wget $(curl -X GET ${CI_NEXUS_URL} | grep -oP 'https:[^>]*.rv64.v[\d\.]*tar.gz' | tail -n 1) -O spacemit-ort.latest.tar.gz --no-check-certificate
+    - wget $(curl -X GET ${CI_NEXUS_URL} | grep -oP 'https:[^>]*.riscv64.[\d\.]*tar.gz' | sort -V | tail -n 1) -O spacemit-ort.latest.tar.gz --no-check-certificate
     - |
       mkdir spacemit-ort
       tar xzf spacemit-ort.latest.tar.gz -C spacemit-ort --strip-components 1
@@ -111,7 +111,7 @@ build-job-riscv64:  # This job runs in the build stage, which runs second.
     - |
       mkdir ${BUILD_DIR}
       pushd ${BUILD_DIR}
-      cmake .. -DORT_HOME=${ORT_HOME} -DOpenCV_DIR=${OPENCV_STATIC_DIR}/lib/cmake/opencv4 -DCMAKE_C_COMPILER=${CROSS_TOOL}gcc -DCMAKE_CXX_COMPILER=${CROSS_TOOL}g++ -DCMAKE_SYSROOT=${SYSROOT} -DCMAKE_INSTALL_PREFIX=${INSTALL_PREFIX} -DDEMO=ON
+      cmake .. -DORT_HOME=${ORT_HOME} -DOpenCV_DIR=${OPENCV_STATIC_DIR}/lib/cmake/opencv4 -DCMAKE_C_COMPILER=${CROSS_TOOL}gcc -DCMAKE_CXX_COMPILER=${CROSS_TOOL}g++ -DCMAKE_SYSROOT=${SYSROOT} -DCMAKE_INSTALL_PREFIX=${INSTALL_PREFIX} -DDEMO=ON -DXDG=OFF
       make install -j`nproc` VERBOSE=1
       popd
     # copy demo and data
@@ -164,9 +164,17 @@ x86_64-test-job:    # This job runs in the test stage.
   script:
     - echo "Running unit tests ... (This will take several seconds.)"
     - export LD_LIBRARY_PATH=${ORT_HOME_X86}/lib:$LD_LIBRARY_PATH
-    - demo/build.x86_64/classification_demo $DATA/models/squeezenet1.1-7.onnx $DATA/labels/synset.txt $DATA/imgs/dog.jpg
+    - result=`demo/build.x86_64/classification_demo $DATA/models/squeezenet1.1-7.onnx $DATA/labels/synset.txt $DATA/imgs/dog.jpg`
+    - $([[ ${result:0-30:8} == "Pembroke" ]])
     - demo/build.x86_64/detection_demo $DATA/models/nanodet-plus-m_320.onnx $DATA/labels/coco.txt $DATA/imgs/person0.jpg result0.jpg
     - $([[ "3aeb3a152ce55a94c0c7bac303534b8d" == "$(md5sum result0.jpg | awk '{print $1}')" ]])
+    - demo/build.x86_64/detection_video_demo rootfs/usr/share/ai-support/models/yolov6p5_n.q.onnx $DATA/labels/coco.txt rootfs/usr/share/ai-support/videos/test.mp4 test.avi
+    - $([[ "c427e3575f4369522dabc7af46ecf0d2" == "$(md5sum test.avi | awk '{print $1}')" ]])
+    - export SUPPORT_SHOW=-1
+    - demo/build.x86_64/detection_stream_demo rootfs/usr/share/ai-support/models/yolov6p5_n.q.onnx $DATA/labels/coco.txt rootfs/usr/share/ai-support/videos/test.mp4 video
+    - demo/build.x86_64/estimation_demo rootfs/usr/share/ai-support/models/yolov6p5_n.q.onnx $DATA/labels/coco.txt rootfs/usr/share/ai-support/models/rtmpose-t.q.onnx $DATA/imgs/person0.jpg result1.jpg
+    - $([[ "dc531ec076418357e8478a0a2823285d" == "$(md5sum result1.jpg | awk '{print $1}')" ]])
+    - demo/build.x86_64/tracker_stream_demo rootfs/usr/share/ai-support/models/yolov6p5_n.q.onnx $DATA/labels/coco.txt rootfs/usr/share/ai-support/models/rtmpose-t.q.onnx rootfs/usr/share/ai-support/videos/test.mp4 video
     - echo "Running x86_64 tests done!"
   <<: *only-defaults
 
@@ -176,9 +184,12 @@ riscv64-test-job:   # This job runs in the test stage.
     - build-job-riscv64
   script:
     - echo "Running unit tests ... (This will take several seconds.)"
-    - ${QEMU_CMD} demo/build.riscv64/classification_demo $DATA/models/squeezenet1.1-7.onnx $DATA/labels/synset.txt $DATA/imgs/dog.jpg
+    - result=`${QEMU_CMD} demo/build.riscv64/classification_demo $DATA/models/squeezenet1.1-7.onnx $DATA/labels/synset.txt $DATA/imgs/dog.jpg`
+    - $([[ ${result:0-30:8} == "Pembroke" ]])
     - ${QEMU_CMD} demo/build.riscv64/detection_demo $DATA/models/nanodet-plus-m_320.onnx $DATA/labels/coco.txt $DATA/imgs/person0.jpg result0.jpg
     - $([[ "3aeb3a152ce55a94c0c7bac303534b8d" == "$(md5sum result0.jpg | awk '{print $1}')" ]])
+    - ${QEMU_CMD} demo/build.riscv64/estimation_demo rootfs/usr/share/ai-support/models/yolov6p5_n.q.onnx $DATA/labels/coco.txt rootfs/usr/share/ai-support/models/rtmpose-t.q.onnx $DATA/imgs/person0.jpg result1.jpg
+    - $([[ "e2cb2b8d9e216d68ff653415f92be86c" == "$(md5sum result1.jpg | awk '{print $1}')" ]])
     - echo "Running riscv64 tests done!"
   <<: *only-defaults
 
@@ -186,7 +197,7 @@ package-daily-dpkg:
   stage: package
   variables:
     CI_PKG_OPTION: "--skip-py" # "--skip-ort --skip-py"
-    CI_PKG_VERSION: "1.0.7"
+    CI_PKG_VERSION: "latest"
   dependencies:
     - build-job-x86_64
     - build-job-riscv64
@@ -239,12 +250,14 @@ upload-archive-nexus:
     - |
       pushd build.x86_64
       tar czf bianbu-ai-support.x86_64.${tag}.tar.gz bianbu-ai-support.x86_64
-      curl -k -u $NEXUS_USERNAME:$NEXUS_PASSWORD --upload-file bianbu-ai-support.x86_64.${tag}.tar.gz https://nexus.bianbu.xyz/repository/bianbu-ai/support-library/bianbu-ai-support.x86_64.${tag}.tar.gz
+      http_code=$(curl -k -u $NEXUS_USERNAME:$NEXUS_PASSWORD --upload-file bianbu-ai-support.x86_64.${tag}.tar.gz https://nexus.bianbu.xyz/repository/bianbu-ai/support-library/bianbu-ai-support.x86_64.${tag}.tar.gz -w %{http_code})
+      [[ ${http_code} == "201" ]]
       popd
     - |
       pushd build.riscv64
       tar czf bianbu-ai-support.riscv64.${tag}.tar.gz bianbu-ai-support.riscv64
-      curl -k -u $NEXUS_USERNAME:$NEXUS_PASSWORD --upload-file bianbu-ai-support.riscv64.${tag}.tar.gz https://nexus.bianbu.xyz/repository/bianbu-ai/support-library/bianbu-ai-support.riscv64.${tag}.tar.gz
+      http_code=$(curl -k -u $NEXUS_USERNAME:$NEXUS_PASSWORD --upload-file bianbu-ai-support.riscv64.${tag}.tar.gz https://nexus.bianbu.xyz/repository/bianbu-ai/support-library/bianbu-ai-support.riscv64.${tag}.tar.gz -w %{http_code})
+      [[ ${http_code} == "201" ]]
       popd
   <<: *rule-upload
 

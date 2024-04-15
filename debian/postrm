@@ -1,35 +1,83 @@
 #!/bin/bash
 
-ai_xdg_dirs=/usr/share
-ai_xdg_dir=
+set -e
+#set -x
 
-function ai_demo_init() {
-  set -e
-}
+aiDesktop=(
+  "object-detection.desktop"
+  #"hand-tracker.desktop"
+  "pose-tracker.desktop"
+)
 
-function ai_demo_remove() {
-  if [ -x /usr/bin/update-mime-database ] ; then
-    : #update-mime-database "${ai_xdg_dir}/mime"
+function remove_desktop_shortcut() {
+  if [ $# -ne 1 ]; then
+    return;
   fi
+  local curFileName=$1
 
-  if [ -x /usr/bin/update-desktop-database ] ; then
-    : #update-desktop-database -q "${ai_xdg_dir}/applications"
-  fi
-
-  for HOMEDIR in /home/*; do
-    :
+  for desktop in "${aiDesktop[@]}"; do
+    local initSetup="${curFileName}/.config/${APP_NAME}/applications/${desktop%.desktop}-initial-setup-done"
+    if [ ! -f ${initSetup} ]; then
+      echo "[WARN] ${APP_NAME}: setup file for ${desktop} not found!"
+    else
+      # remove all desktop shortcuts of different languages
+      while IFS= read -r line; do
+        # line format: </path/to/desktop/shortcut> [date]
+        rm -rf $(echo $line | awk '{print $1}')
+      done < ${initSetup}
+    fi
   done
 }
 
-function ai_demo_main() {
+function remove_config() {
+  rm -rf /root/.config/${APP_NAME}
+  for FILENAME in /home/*; do
+    # remove user config of application
+    rm -rf ${FILENAME}/.config/${APP_NAME}
+  done
+}
+
+## ------------------------- ##
+
+function postrm_init() {
+  export APP_NAME=bianbu-ai-support
+  export APP_DATA=/usr/share/applications
+}
+
+function postrm_upgrade() {
+  if [ -x /usr/bin/update-mime-database ] ; then
+    : #update-mime-database "/usr/share/mime"
+  fi
+
+  if [ -x /usr/bin/update-desktop-database ] ; then
+    : #update-desktop-database -q "/usr/share/applications"
+  fi
+}
+
+function postrm_remove() {
+  # remove desktop shortcut
+  remove_desktop_shortcut "/root"
+  for FILENAME in /home/*; do
+    remove_desktop_shortcut ${FILENAME}
+  done
+
+  postrm_upgrade
+}
+
+function postrm_purge() {
+  remove_config
+}
+
+function postrm_main() {
   if [ $# -eq 0 ] ; then
     return;
   fi
 
-  ai_demo_init
+  postrm_init
   case $1 in
-    remove | upgrade )  shift; ai_demo_remove $@;;
-    purge )             ;;
+    remove )            shift; postrm_remove $@;;
+    upgrade )           shift; postrm_upgrade $@;;
+    purge )             shift; postrm_purge $@;;
     abort-install )     ;;
     abort-upgrade )     ;;
     failed-upgrade )    ;;
@@ -37,4 +85,4 @@ function ai_demo_main() {
 }
 
 args="$@"
-ai_demo_main $@
+postrm_main $@

@@ -2,7 +2,8 @@
 
 #include <cmath>
 #include <cstdint>  // for: uint32_t
-#include <fstream>
+#include <fstream>  // for ifstream
+#include <iostream>
 #include <string>
 #include <vector>
 
@@ -11,73 +12,14 @@
 #include "src/utils/utils.h"
 using json = nlohmann::json;
 
-bool checkLabelFileExtension(const std::string& filename) {
-  size_t pos = filename.rfind('.');
-  if (filename.empty()) {
-    std::cout << "[ ERROR ] The Label file path is empty" << std::endl;
-    return false;
-  }
-  if (pos == std::string::npos) return false;
-  std::string ext = filename.substr(pos + 1);
-  if (ext == "txt") {
-    return true;
-  } else {
-    return false;
-  }
-}
-
-std::vector<std::string> readLabels(const std::string& labelFilepath) {
+std::vector<std::string> readLabels(const std::string& label_file_path) {
   std::vector<std::string> labels;
   std::string line;
-  std::ifstream fp(labelFilepath);
+  std::ifstream fp(label_file_path);
   while (std::getline(fp, line)) {
     labels.push_back(line);
   }
   return labels;
-}
-
-bool checkModelFileExtension(const std::string& filename) {
-  size_t pos = filename.rfind('.');
-  if (filename.empty()) {
-    std::cout << "[ ERROR ] The Model file path is empty" << std::endl;
-    return false;
-  }
-  if (pos == std::string::npos) return false;
-  std::string ext = filename.substr(pos + 1);
-  if (ext == "onnx") {
-    return true;
-  } else {
-    return false;
-  }
-}
-
-int checkConfigFileExtension(const std::string& filename) {
-  size_t pos = filename.rfind('.');
-  if (filename.empty()) {
-    std::cout << "[ ERROR ] The Config file path is empty" << std::endl;
-    return false;
-  }
-  if (pos == std::string::npos) return false;
-  std::string ext = filename.substr(pos + 1);
-  if (ext == "json") {
-    return true;
-  } else {
-    return false;
-  }
-}
-
-int configCheck(const json& config) {
-  if (!config.contains("model_path") || !config.contains("label_path")) {
-    return 1;
-  } else if (!checkModelFileExtension(config["model_path"]) ||
-             !checkLabelFileExtension(config["label_path"])) {
-    return 1;
-  } else if (!exists_check(config["model_path"]) ||
-             !exists_check(config["label_path"])) {
-    return 1;
-  } else {
-    return 0;
-  }
 }
 
 float sigmoid(float x) { return (1 / (1 + exp(-x))); }
@@ -91,13 +33,8 @@ float fast_exp(float x) {
   return v.f;
 }
 
-bool exists_check(const std::string& name) {
-  struct stat buffer;
-  return (stat(name.c_str(), &buffer) == 0);
-}
-
-void resize_unscale(const cv::Mat& mat, cv::Mat& mat_rs, int target_height,
-                    int target_width) {
+void resizeUnscale(const cv::Mat& mat, cv::Mat& mat_rs, int target_height,
+                   int target_width) {
   if (mat.empty()) return;
   int img_height = static_cast<int>(mat.rows);
   int img_width = static_cast<int>(mat.cols);
@@ -126,4 +63,85 @@ void resize_unscale(const cv::Mat& mat, cv::Mat& mat_rs, int target_height,
   cv::resize(mat, new_unpad_mat, cv::Size(new_unpad_w, new_unpad_h));
 
   new_unpad_mat.copyTo(mat_rs(cv::Rect(dw, dh, new_unpad_w, new_unpad_h)));
+}
+
+int getConfig(const std::string& config_file_path, json& config) {
+  std::ifstream f(config_file_path);
+  try {
+    config = json::parse(f);
+  } catch (json::parse_error& ex) {
+    std::cout << "[ ERROR ]  Init fail, parse json config file fail"
+              << std::endl;
+    return 0;
+  }
+  return 1;
+}
+
+int configToOption(const std::string& config_file_path,
+                   ImageClassificationOption& option) {
+  json config;
+  if (!getConfig(config_file_path, config)) {
+    return -1;
+  }
+  std::string model_path = config["model_path"];
+  option.model_path = model_path;
+  std::string label_path = config["label_path"];
+  option.label_path = label_path;
+  if (config.contains("intra_threads_num")) {
+    option.intra_threads_num = config["intra_threads_num"];
+  }
+  if (config.contains("inter_threads_num")) {
+    option.inter_threads_num = config["inter_threads_num"];
+  }
+  return 0;
+}
+
+int configToOption(const std::string& config_file_path,
+                   ObjectDetectionOption& option) {
+  json config;
+  if (!getConfig(config_file_path, config)) {
+    return -1;
+  }
+  std::string model_path = config["model_path"];
+  option.model_path = model_path;
+  std::string label_path = config["label_path"];
+  option.label_path = label_path;
+  if (config.contains("intra_threads_num")) {
+    option.intra_threads_num = config["intra_threads_num"];
+  }
+  if (config.contains("inter_threads_num")) {
+    option.inter_threads_num = config["inter_threads_num"];
+  }
+  if (config.contains("score_threshold")) {
+    option.score_threshold = config["score_threshold"];
+  }
+  if (config.contains("nms_threshold")) {
+    option.nms_threshold = config["nms_threshold"];
+  }
+  if (config.contains("class_name_whitelist")) {
+    option.class_name_whitelist =
+        config["class_name_whitelist"].get<std::vector<int>>();
+  }
+  if (config.contains("class_name_blacklist")) {
+    option.class_name_blacklist =
+        config["class_name_blacklist"].get<std::vector<int>>();
+  }
+  return 0;
+}
+
+int configToOption(const std::string& config_file_path,
+                   PoseEstimationOption& option) {
+  json config;
+  if (!getConfig(config_file_path, config)) {
+    return -1;
+  }
+  std::string model_path = config["model_path"];
+  option.model_path = model_path;
+  if (config.contains("intra_threads_num")) {
+    option.intra_threads_num = config["intra_threads_num"];
+  }
+  if (config.contains("inter_threads_num")) {
+    option.inter_threads_num = config["inter_threads_num"];
+  }
+  return 0;
 }

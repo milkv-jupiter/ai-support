@@ -1,1 +1,32 @@
 #!/bin/bash
+
+set -e
+#set -x
+
+function preinst_init() {
+  export APP_NAME=bianbu-ai-support
+  export APP_DATA=/usr/share/applications
+}
+
+function preinst_install() {
+  :
+}
+
+function preinst_upgrade() {
+  :
+}
+
+function preinst_main() {
+  if [ $# -eq 0 ]; then
+    return;
+  fi
+
+  preinst_init
+  case $1 in
+    install )   shift; preinst_install $@;;
+    upgrade )   shift; preinst_upgrade $@;;
+  esac
+}
+
+args="$@"
+preinst_main $@
