@@ -1,7 +1,4 @@
 ﻿#include <stdlib.h>
-#ifndef _WIN32
-#include <sys/prctl.h>  // for: prctl
-#endif
 #include <unistd.h>  // for: getopt
 
 #include <algorithm>  // for: swap
@@ -18,17 +15,12 @@
 #include "pose_estimation.hpp"
 #include "task/vision/object_detection_task.h"
 #include "task/vision/pose_estimation_task.h"
+#include "utils/cv_helper.hpp"
 #ifdef DEBUG
 #include "utils/time.h"
 #endif
 
 #include "utils/utils.h"
-
-void setThreadName(const char* name) {
-#ifndef _WIN32
-  prctl(PR_SET_NAME, name);
-#endif
-}
 
 class Tracker {
  public:
@@ -116,24 +108,34 @@ class Tracker {
   PoseEstimationOption estimation_option_;
 };
 
-void Inference(DataLoader& dataloader, Tracker& tracker) {
+// 检测线程
+void Track(DataLoader& dataloader, Tracker& tracker) {
   setThreadName("TrackerThread");
+  if (tracker.init() != 0) {
+    std::cout << "[ ERROR ] Tracker init error" << std::endl;
+    return;
+  }
   cv::Mat frame;
+  int total_dur = 0;
+  int count = 0;
+  auto start = std::chrono::steady_clock::now();
   while (dataloader.ifEnable()) {
-    auto start = std::chrono::steady_clock::now();
-    if (!dataloader.isUpdated()) {
-      continue;
-    }
     frame = dataloader.peekFrame();  // 取(拷贝)一帧数据
-    if ((frame).empty()) {
-      dataloader.setDisable();
-      break;
+    if (frame.empty()) {
+      continue;
     }
     int flag = tracker.infer(frame);  // 推理并保存检测结果
     auto end = std::chrono::steady_clock::now();
     auto detection_duration =
         std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-    dataloader.setDetectionFps(1000 / (detection_duration.count()));
+    total_dur = detection_duration.count();
+    count++;
+    if (total_dur > 1000) {
+      dataloader.setDetectionFps(count);
+      start = std::chrono::steady_clock::now();
+      count = 0;
+      total_dur = 0;
+    }
     if (flag == 0) {
       std::cout << "[ WARNING ] Unable to catch person" << std::endl;  // 无人
     }
@@ -142,17 +144,6 @@ void Inference(DataLoader& dataloader, Tracker& tracker) {
       break;  // 摄像头结束拍摄或者故障
     }
   }
-}
-
-// 检测线程
-void Track(DataLoader& dataloader, Tracker& tracker) {
-  setThreadName("OnnxruntimeThread");
-  if (tracker.init() != 0) {
-    std::cout << "[ ERROR ] Tracker init error" << std::endl;
-    return;
-  }
-  std::thread t1(Inference, std::ref(dataloader), std::ref(tracker));
-  t1.join();
   std::cout << "Track thread quit" << std::endl;
 }
 
@@ -215,8 +206,8 @@ void Preview(DataLoader& dataloader, Tracker& tracker) {
                   cv::Point(0, 15), cv::FONT_HERSHEY_SIMPLEX, 0.5f,
                   cv::Scalar(0, 255, 0), 1, cv::LINE_AA);
       cv::putText(frame, "detection fps: " + std::to_string(detection_fps),
-                  cv::Point(500, 15), cv::FONT_HERSHEY_SIMPLEX, 0.5f,
-                  cv::Scalar(0, 255, 0), 1, cv::LINE_AA);
+                  cv::Point(frame.cols - 140, 15), cv::FONT_HERSHEY_SIMPLEX,
+                  0.5f, cv::Scalar(0, 255, 0), 1, cv::LINE_AA);
     }
     if (enable_show != -1) {
       cv::imshow("Track", (frame));
@@ -246,6 +237,8 @@ void Preview(DataLoader& dataloader, Tracker& tracker) {
 }
 
 int main(int argc, char* argv[]) {
+  cvConfig();
+
   std::string det_file_path, pose_file_path, input, input_type;
   int resize_height{320}, resize_width{320};
   ObjectDetectionOption detection_option;

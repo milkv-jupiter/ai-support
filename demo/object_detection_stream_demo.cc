@@ -1,7 +1,4 @@
 ﻿#include <stdlib.h>
-#ifndef _WIN32
-#include <sys/prctl.h>  // for: prctl
-#endif
 #include <unistd.h>  // for: getopt
 
 #include <algorithm>  // for: swap
@@ -17,17 +14,12 @@
 #include "object_detection.hpp"
 #include "opencv2/opencv.hpp"
 #include "task/vision/object_detection_task.h"
+#include "utils/cv_helper.hpp"
 #ifdef DEBUG
 #include "utils/time.h"
 #endif
 
 #include "utils/utils.h"
-
-void setThreadName(const char* name) {
-#ifndef _WIN32
-  prctl(PR_SET_NAME, name);
-#endif
-}
 
 class Detector {
  public:
@@ -84,40 +76,39 @@ class Detector {
   ObjectDetectionOption option_;
 };
 
-void Inference(DataLoader& dataloader, Detector& detector) {
+// 检测线程
+void Detection(DataLoader& dataloader, Detector& detector) {
   setThreadName("DetectionThread");
+  if (detector.init() != 0) {
+    std::cout << "[ ERROR ] Detector init error" << std::endl;
+    dataloader.setDisable();
+  }
   cv::Mat frame;
+  int total_dur = 0;
+  int count = 0;
+  auto start = std::chrono::steady_clock::now();
   while (dataloader.ifEnable()) {
-    auto start = std::chrono::steady_clock::now();
-    if (!dataloader.isUpdated()) {
-      continue;
-    }
     frame = dataloader.peekFrame();  // 取(拷贝)一帧数据
-    if ((frame).empty()) {
-      dataloader.setDisable();
-      break;
+    if (frame.empty()) {
+      continue;
     }
     int flag = detector.infer(frame);  // 推理并保存检测结果
     auto end = std::chrono::steady_clock::now();
     auto detection_duration =
         std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-    dataloader.setDetectionFps(1000 / (detection_duration.count()));
+    total_dur = detection_duration.count();
+    count++;
+    if (total_dur > 1000) {
+      dataloader.setDetectionFps(count);
+      start = std::chrono::steady_clock::now();
+      count = 0;
+      total_dur = 0;
+    }
     if (flag == -1) {
       std::cout << "[ ERROR ] Infer frame failed" << std::endl;
       break;  // 摄像头结束拍摄或者故障
     }
   }
-}
-
-// 检测线程
-void Detection(DataLoader& dataloader, Detector& detector) {
-  setThreadName("OnnxruntimeThread");
-  if (detector.init() != 0) {
-    std::cout << "[ ERROR ] Detector init error" << std::endl;
-    dataloader.setDisable();
-  }
-  std::thread t1(Inference, std::ref(dataloader), std::ref(detector));
-  t1.join();
   std::cout << "Detection thread quit" << std::endl;
 }
 
@@ -203,8 +194,8 @@ void Preview(DataLoader& dataloader, Detector& detector) {
                   cv::Point(0, 15), cv::FONT_HERSHEY_SIMPLEX, 0.5f,
                   cv::Scalar(0, 255, 0), 1, cv::LINE_AA);
       cv::putText(frame, "detection fps: " + std::to_string(detection_fps),
-                  cv::Point(500, 15), cv::FONT_HERSHEY_SIMPLEX, 0.5f,
-                  cv::Scalar(0, 255, 0), 1, cv::LINE_AA);
+                  cv::Point(frame.cols - 140, 15), cv::FONT_HERSHEY_SIMPLEX,
+                  0.5f, cv::Scalar(0, 255, 0), 1, cv::LINE_AA);
     }
     if (enable_show != -1) {
       cv::imshow("Detection", (frame));
@@ -234,6 +225,8 @@ void Preview(DataLoader& dataloader, Detector& detector) {
 }
 
 int main(int argc, char* argv[]) {
+  cvConfig();
+
   std::string config_file_path, input, input_type;
   ObjectDetectionOption option;
   int resize_height{320}, resize_width{320};
