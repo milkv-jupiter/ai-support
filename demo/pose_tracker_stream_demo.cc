@@ -16,18 +16,13 @@
 #include "task/vision/object_detection_task.h"
 #include "task/vision/pose_estimation_task.h"
 #include "utils/cv_helper.hpp"
+#include "utils/json_helper.hpp"
 #ifdef DEBUG
 #include "utils/time.h"
 #endif
 
-#include "utils/utils.h"
-
 class Tracker {
  public:
-  Tracker(const std::string& det_file_path, const std::string& pose_file_path) {
-    det_file_path_ = det_file_path;
-    pose_file_path_ = pose_file_path;
-  }
   Tracker(const ObjectDetectionOption& detection_option,
           const PoseEstimationOption& estimation_option) {
     detection_option_ = detection_option;
@@ -36,17 +31,11 @@ class Tracker {
   ~Tracker() {}
   // 初始化/反初始化
   int init() {
-    if (!det_file_path_.empty()) {
-      objectdetectiontask_ = std::unique_ptr<ObjectDetectionTask>(
-          new ObjectDetectionTask(det_file_path_));
-      poseestimationtask_ = std::unique_ptr<PoseEstimationTask>(
-          new PoseEstimationTask(pose_file_path_));
-    } else {
-      objectdetectiontask_ = std::unique_ptr<ObjectDetectionTask>(
-          new ObjectDetectionTask(detection_option_));
-      poseestimationtask_ = std::unique_ptr<PoseEstimationTask>(
-          new PoseEstimationTask(estimation_option_));
-    }
+    objectdetectiontask_ = std::unique_ptr<ObjectDetectionTask>(
+        new ObjectDetectionTask(detection_option_));
+    poseestimationtask_ = std::unique_ptr<PoseEstimationTask>(
+        new PoseEstimationTask(estimation_option_));
+
     return getInitFlag();
   }
 
@@ -102,8 +91,6 @@ class Tracker {
   std::queue<struct PoseEstimationResult> poses_array_;
   std::unique_ptr<ObjectDetectionTask> objectdetectiontask_;
   std::unique_ptr<PoseEstimationTask> poseestimationtask_;
-  std::string pose_file_path_;
-  std::string det_file_path_;
   ObjectDetectionOption detection_option_;
   PoseEstimationOption estimation_option_;
 };
@@ -236,16 +223,25 @@ void Preview(DataLoader& dataloader, Tracker& tracker) {
   }
 }
 
+static void usage(const char* exe) {
+  std::cout << "Usage: \n"
+            << exe
+            << " [-h <resize_height>] [-w <resize_width>] [-f] "
+               "<detection_model_path> <detection_label_path> "
+               "<pose_point_model_path> <input>\n"
+            << exe
+            << " [-h <resize_height>] [-w <resize_width>] [-f] "
+               "<detection_config_path> <pose_point_config_path> <input>\n";
+}
+
 int main(int argc, char* argv[]) {
   cvConfig();
 
-  std::string det_file_path, pose_file_path, input, input_type;
-  int resize_height{320}, resize_width{320};
   ObjectDetectionOption detection_option;
   PoseEstimationOption estimation_option;
-  std::unique_ptr<Tracker> tracker;
-  int o;
-  const char* optstring = "w:h:";
+  std::string input;
+  int o, resize_height{320}, resize_width{320}, flip{0};
+  const char* optstring = "w:h:f";
   while ((o = getopt(argc, argv, optstring)) != -1) {
     switch (o) {
       case 'w':
@@ -254,40 +250,33 @@ int main(int argc, char* argv[]) {
       case 'h':
         resize_height = atoi(optarg);
         break;
+      case 'f':
+        flip = 1;
+        break;
       case '?':
         std::cout << "[ ERROR ] Unsupported usage" << std::endl;
         break;
     }
   }
-  if (argc - optind == 4) {
-    det_file_path = argv[optind];
-    pose_file_path = argv[optind + 1];
+  if (argc - optind == 3) {
+    if (configToOption(argv[optind], detection_option) != 0 ||
+        configToOption(argv[optind + 1], estimation_option) != 0) {
+      return -1;
+    }
     input = argv[optind + 2];
-    input_type = argv[optind + 3];
-    tracker =
-        std::unique_ptr<Tracker>(new Tracker(det_file_path, pose_file_path));
-  } else if (argc - optind == 5) {
+  } else if (argc - optind == 4) {
     detection_option.model_path = argv[optind];
     detection_option.label_path = argv[optind + 1];
     estimation_option.model_path = argv[optind + 2];
     input = argv[optind + 3];
-    input_type = argv[optind + 4];
-    tracker = std::unique_ptr<Tracker>(
-        new Tracker(detection_option, estimation_option));
   } else {
-    std::cout
-        << "Please run with " << argv[0]
-        << " <det_model_file_path> <det_label_file_path> "
-           "<pose_model_file_path> <input> <input_type> (video or cameraId "
-           "option(-h <resize_height>) option(-w <resize_width>) or "
-        << argv[0]
-        << " <det_config_file_path> <pose_config_file_path> <input> "
-           "<input_type> (video or cameraId option(-h <resize_height>) "
-           "option(-w <resize_width>)"
-        << std::endl;
+    usage(argv[0]);
     return -1;
   }
-  SharedDataLoader dataloader{resize_height, resize_width};
+
+  std::unique_ptr<Tracker> tracker = std::unique_ptr<Tracker>(
+      new Tracker(detection_option, estimation_option));
+  SharedDataLoader dataloader{resize_height, resize_width, flip};
   if (dataloader.init(input) != 0) {
     std::cout << "[ ERROR ] dataloader init error" << std::endl;
     return -1;

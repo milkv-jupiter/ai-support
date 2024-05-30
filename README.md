@@ -46,18 +46,18 @@ or
 ./detection_demo <model_file_path> <label_file_path> <image_file_path> <save_img_path> 
 or 
 ./detection_demo <config_file_path> <image_file_path> <save_img_path>
-./detection_stream_demo <model_file_path> <label_file_path> <input> <input_type> (video or camera_id) option(-h <resize_height>) option(-w <resize_width>)
+./detection_stream_demo [-h <resize_height>] [-w <resize_width>] [-f] <model_file_path> <label_file_path> <input>
 or
-./detection_stream_demo <config_file_path> <input> <input_type> (video or camera_id) option(-h <resize_height>) option(-w <resize_width>)
+./detection_stream_demo [-h <resize_height>] [-w <resize_width>] [-f] <config_file_path> <input>
 ./detection_video_demo <model_file_path> <label_file_path> <video_file_path> <dst_file_path> (end with .avi)
 or
 ./detection_video_demo <config_file_path> <video_file_path> <dst_file_path> (end with .avi)
 ./estimation_demo <det_model_file_path> <det_label_file_path> <pose_model_file_path> <image_file_path> <save_img_path> 
 or
 ./estimation_demo <det_config_file_path> <pose_config_file_path> <image_file_path> <save_img_path> 
-./tracker_stream_demo <det_model_file_path> <det_label_file_path> <pose_model_file_path> <input> <input_type> (video or cameraId) option(-h <resize_height>) option(-w <resize_width>)
+./tracker_stream_demo [-h <resize_height>] [-w <resize_width>] [-f] <det_model_file_path> <det_label_file_path> <pose_model_file_path> <input>
 or
-./tracker_stream_demo <det_config_file_path> <pose_config_file_path> <input> <input_type> (video or cameraId) option(-h <resize_height>) option(-w <resize_width>)
+./tracker_stream_demo [-h <resize_height>] [-w <resize_width>] [-f] <det_config_file_path> <pose_config_file_path> <input>
 ```
 
 ### Using environment variables to implement functions
@@ -78,3 +78,7 @@ Model files format: [ONNX(Open Neural Network Exchange)](https://github.com/onnx
 label files format: using text document, [here](https://github.com/microsoft/onnxruntime-inference-examples/blob/main/c_cxx/OpenVINO_EP/Linux/squeezenet_classification/synset.txt) is a recommended example
 
 configuration files format: using [json](https://github.com/nlohmann/json), the recommended configuration file content is as [here](https://gitlab.dc.com:8443/bianbu/ai/support/-/blob/main/rootfs/usr/share/ai-support/models/yolov6.json)
+
+### Python Support
+
+See [README.md](./python/README.md) for more details.
