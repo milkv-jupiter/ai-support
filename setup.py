@@ -12,7 +12,7 @@ from setuptools.command.build_ext import build_ext
 package_name = "bianbuai"
 
 SCRIPT_DIR = os.path.dirname(__file__)
-TOP_DIR = os.path.realpath(os.path.join(SCRIPT_DIR, ".."))
+TOP_DIR = os.path.realpath(SCRIPT_DIR) # os.path.join(SCRIPT_DIR, "..")
 
 # Convert distutils Windows platform specifiers to CMake -A arguments
 PLAT_TO_CMAKE = {
@@ -169,13 +169,14 @@ classifiers = [
     'Topic :: Software Development :: Libraries',
     'Topic :: Software Development :: Libraries :: Python Modules',
     'Programming Language :: Python',
-    'Programming Language :: Python :: 3 :: Only'
+    'Programming Language :: Python :: 3 :: Only',
     'Programming Language :: Python :: 3.6',
     'Programming Language :: Python :: 3.7',
     'Programming Language :: Python :: 3.8',
     'Programming Language :: Python :: 3.9',
     'Programming Language :: Python :: 3.10',
     'Programming Language :: Python :: 3.11',
+    'Programming Language :: Python :: 3.12',
 ]
 
 if __name__ == "__main__":
