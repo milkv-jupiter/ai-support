@@ -1,9 +1,15 @@
-bianbu-ai-support (1.0.16) mantic-porting; urgency=medium
+bianbu-ai-support (1.1.1) stable; urgency=medium
+
+  * Support bianbu-23.10 and bianbu-24.04 with spacemit-ort v1.2.0 
+
+ -- qinhongjie <hongjie.qin@spacemit.com>  Thu, 11 Jul 2024 12:40:33 +0800
+
+bianbu-ai-support (1.1.0) noble-porting; urgency=medium
 
   [ bianbu-ci ]
-  * Sync change from bianbu-23.10/1.0.16
+  * Sync change from bianbu-24.04/1.1.0
 
- -- qinhongjie <hongjie.qin@spacemit.com>  Wed, 03 Jul 2024 09:13:40 +0800
+ -- qinhongjie <hongjie.qin@spacemit.com>  Tue, 02 Jul 2024 17:40:40 +0800
 
 bianbu-ai-support (1.0.15) mantic-porting; urgency=medium
 
